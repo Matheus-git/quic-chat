@@ -8,9 +8,9 @@ fn main() {
     let CertifiedKey { cert, key_pair } = generate_simple_self_signed(subject_alt_names).unwrap();
 
     if !Path::new("certs").exists() {
-        fs::create_dir_all("certs").expect("Falha ao criar diretório 'certs'");
+        fs::create_dir_all("certs").expect("Failed to create 'certs' directory");
     }
 
-    let _ = fs::write("certs/cert.pem",cert.pem());
-    let _ = fs::write("certs/cert.key",key_pair.serialize_pem());
+    let _ = fs::write("certs/cert.pem", cert.pem());
+    let _ = fs::write("certs/cert.key", key_pair.serialize_pem());
 }
