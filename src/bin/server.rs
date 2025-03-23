@@ -1,4 +1,4 @@
-use quinn::{Endpoint, ServerConfig};
+use quinn::{Endpoint, ServerConfig, Incoming, SendStream, Connection};
 use std::{error::Error, net::SocketAddr};
 use rustls_pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
 
@@ -9,45 +9,59 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let cert = CertificateDer::from_pem_file("certs/cert.pem")?;
     let private_key = PrivateKeyDer::from_pem_file("certs/cert.key")?;
 
-    let server_config = ServerConfig::with_single_cert(vec![cert], private_key )?;
+    let server_config = ServerConfig::with_single_cert(vec![cert], private_key)?;
 
     let endpoint = Endpoint::server(server_config, addr)?;
-    println!("Servidor QUIC rodando em {}", addr);
+    println!("QUIC server running at {}", addr);
 
     while let Some(conn) = endpoint.accept().await {
         tokio::spawn(async move {
-            match conn.await {
-                Ok(new_conn) => {
-                    println!("Nova conexão de {:?}", new_conn.remote_address());
-                    
-                    match new_conn.accept_bi().await {
-                        Ok((mut send, mut recv)) => {
-                            println!("Nova conexão de {:?}", new_conn.remote_address());
-                            let mut buf = vec![0; 1024]; // Buffer de 1024 bytes
-                            
-                            match recv.read(&mut buf).await {
-                                Ok(_size) => {
-                                    println!("Recebido: {}", String::from_utf8_lossy(&buf));
-                                    send.write("Olá de volta".as_bytes()).await
-                                        .expect("erro ao enviar mensagem");
-                                }
-                                Ok(_) => {
-                                    println!("Conexão fechada pelo remetente.");
-                                }
-                                Err(e) => {
-                                    eprintln!("Erro ao ler da conexão: {}", e);
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            eprintln!("Erro ao aceitar conexão: {}", e);
-                        }
-                    }
-                }
-                Err(e) => eprintln!("Erro na conexão: {:?}", e),
-            }
+            handle_connection(conn).await;
         });
     }
 
+    Ok(())
+}
+
+async fn handle_connection(conn: Incoming) {
+    match conn.await {
+        Ok(new_conn) => {
+            println!("\n(New connection from {:?})", new_conn.remote_address());
+            if let Err(e) = handle_stream(new_conn).await {
+                eprintln!("Error handling stream: {}", e);
+            }
+        }
+        Err(e) => eprintln!("Connection error: {:?}", e),
+    }
+}
+
+async fn handle_stream(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
+    match conn.accept_bi().await {
+        Ok((mut send, mut recv)) => {
+            let mut buf = vec![0; 1024];
+            match recv.read(&mut buf).await {
+                Ok(_size) => {
+                    println!("Received: {}", String::from_utf8_lossy(&buf));
+                    let response = "Hello, I am the server";
+                    send_response(&mut send, response).await?;
+                    println!("Responding: {}", response);
+                }
+                Err(e) => {
+                    eprintln!("Error reading from connection: {}", e);
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Error accepting connection: {}", e);
+        }
+    }
+
+    Ok(())
+}
+
+async fn send_response(send: &mut SendStream, response: &str) -> Result<(), Box<dyn std::error::Error>> {
+    send.write(response.as_bytes()).await?;
+    send.finish()?;
+    send.stopped().await?;
     Ok(())
 }
