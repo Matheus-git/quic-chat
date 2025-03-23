@@ -1,10 +1,16 @@
 use rcgen::{generate_simple_self_signed, CertifiedKey};
+use std::path::Path;
+use std::fs;
 
 fn main() {
-    let subject_alt_names = vec!["hello.world.example".to_string(),
-	"localhost".to_string()];
+    let subject_alt_names = vec!["localhost".to_string()];
 
     let CertifiedKey { cert, key_pair } = generate_simple_self_signed(subject_alt_names).unwrap();
-    let _ = std::fs::write("certs/cert.pem",cert.pem());
-    let _ = std::fs::write("certs/cert.key",key_pair.serialize_pem());
+
+    if !Path::new("certs").exists() {
+        fs::create_dir_all("certs").expect("Falha ao criar diretório 'certs'");
+    }
+
+    let _ = fs::write("certs/cert.pem",cert.pem());
+    let _ = fs::write("certs/cert.key",key_pair.serialize_pem());
 }

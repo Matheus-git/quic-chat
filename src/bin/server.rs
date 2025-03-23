@@ -19,9 +19,30 @@ async fn main() -> Result<(), Box<dyn Error>> {
             match conn.await {
                 Ok(new_conn) => {
                     println!("Nova conexão de {:?}", new_conn.remote_address());
-                    // if let Ok((mut send, mut recv)) = new_conn.accept_bi().await {
-                    //     let mut buf = vec![1024];
-                    // }
+                    
+                    match new_conn.accept_bi().await {
+                        Ok((mut send, mut recv)) => {
+                            println!("Nova conexão de {:?}", new_conn.remote_address());
+                            let mut buf = vec![0; 1024]; // Buffer de 1024 bytes
+                            
+                            match recv.read(&mut buf).await {
+                                Ok(_size) => {
+                                    println!("Recebido: {}", String::from_utf8_lossy(&buf));
+                                    send.write("Olá de volta".as_bytes()).await
+                                        .expect("erro ao enviar mensagem");
+                                }
+                                Ok(_) => {
+                                    println!("Conexão fechada pelo remetente.");
+                                }
+                                Err(e) => {
+                                    eprintln!("Erro ao ler da conexão: {}", e);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Erro ao aceitar conexão: {}", e);
+                        }
+                    }
                 }
                 Err(e) => eprintln!("Erro na conexão: {:?}", e),
             }

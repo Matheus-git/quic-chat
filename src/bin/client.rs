@@ -23,8 +23,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("Conectado ao servidor QUIC em {}", server_addr);
 
     // Abrir um stream bidirecional
-    let (_send, _recv) = conn.open_bi().await?;
-    println!("Stream aberto, enviando mensagem...");
+    let (mut send, mut recv) = conn.open_bi().await?;
+    println!("Stream aberto");
+
+    send.write("OIee".as_bytes()).await?;
+    
+    // Agora, podemos manter a conexão aberta para ler ou enviar mais dados
+    let mut buf = vec![0; 1024]; // Buffer para leitura
+
+    // Exemplo: Ler dados do servidor
+    match recv.read(&mut buf).await {
+        Ok(size) => {
+            println!("Mensagem recebida: {}", String::from_utf8_lossy(&buf));
+        }
+        Ok(_) => {
+            println!("Nenhuma nova mensagem.");
+        }
+        Err(e) => {
+            eprintln!("Erro ao ler do stream: {}", e);
+        }
+    }
 
     Ok(())
 }
+
